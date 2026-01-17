@@ -1,5 +1,6 @@
 streamlit
-transformers
-torch
 fer
+tensorflow-cpu
 opencv-python-headless
+torch
+transformers
