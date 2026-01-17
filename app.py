@@ -1,62 +1,49 @@
 import streamlit as st
-from fer import FER
-from PIL import Image
-import numpy as np
 from transformers import pipeline
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Vibe-Catcher", page_icon="🎯")
-st.title("🎯 Multimodal Vibe-Catcher")
+# 1. Setup
+st.set_page_config(page_title="AI Vibe Summarizer", page_icon="📑")
+st.title("📑 AI Vibe & Summary Engine")
+st.markdown("---")
 
-# --- LOAD MODELS ---
+# 2. Load Models (Stable Local Versions)
 @st.cache_resource
-def load_models():
-    # Use 'distilbert' because it's the gold standard for 'lightweight' NLP
-    nlp = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-    # mtcnn=False uses the faster Haar Cascade method for face detection
-    vision = FER(mtcnn=False)
-    return nlp, vision
+def load_nlp():
+    # Summarization model (Very stable)
+    summary_pipe = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+    # Sentiment model
+    sentiment_pipe = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+    return summary_pipe, sentiment_pipe
 
-sentiment_ai, face_ai = load_models()
+summarizer, analyzer = load_nlp()
 
-# --- INTERFACE ---
-col1, col2 = st.columns(2)
+# 3. Input
+user_input = st.text_area("Paste a long article or 'yapping' here:", height=200)
 
-with col1:
-    st.subheader("📸 Camera Input")
-    camera_img = st.camera_input("Smile or look locked in!")
-
-with col2:
-    st.subheader("✍️ Text Input")
-    user_text = st.text_input("Tell the AI your current vibe:")
-
-# --- EXECUTION ---
-if st.button("Analyze My Vibe"):
-    if camera_img and user_text:
-        with st.spinner("Fusing Data Streams..."):
-            # 1. Vision Processing
-            img = Image.open(camera_img)
-            img_array = np.array(img)
-            face_results = face_ai.detect_emotions(img_array)
+if st.button("✨ Analyze & Summarize"):
+    if len(user_input) > 20:
+        with st.spinner("AI is reading the vibes..."):
+            # A. Get Sentiment
+            sentiment = analyzer(user_input[:512])[0] # Analyze first 512 tokens
             
-            # 2. NLP Processing
-            text_results = sentiment_ai(user_text)[0]
+            # B. Get Summary
+            summary = summarizer(user_input, max_length=50, min_length=10, do_sample=False)[0]['summary_text']
             
-            # 3. Presentation
-            st.divider()
+            # 4. Display Results with "Dr. Level" Analysis
+            st.subheader("Results")
             
-            # Display Face Result
-            if face_results:
-                emotions = face_results[0]["emotions"]
-                top_face_vibe = max(emotions, key=emotions.get)
-                st.write(f"**Face Signal:** {top_face_vibe.capitalize()}")
+            # Color coding based on vibe
+            if sentiment['label'] == "POSITIVE":
+                st.success(f"**Vibe Check:** Positive Mood ({round(sentiment['score']*100)}%)")
             else:
-                st.write("**Face Signal:** No face detected.")
-
-            # Display Text Result
-            st.write(f"**Text Signal:** {text_results['label']} ({round(text_results['score']*100)}% confidence)")
+                st.error(f"**Vibe Check:** Negative/Serious Mood ({round(sentiment['score']*100)}%)")
             
-            # THE DOCTOR'S FAVORITE: CROSS-MODAL FUSION
-            st.info(f"**AI Synthesis:** The system detected a {text_results['label'].lower()} semantic tone combined with a {top_face_vibe if face_results else 'neutral'} visual state.")
+            st.markdown(f"**AI Summary:** {summary}")
+            
+            # Technical Explanation for the Dr.
+            with st.expander("See Technical Metadata"):
+                st.write("Model 1: DistilBART (Abstractive Summarization)")
+                st.write("Model 2: DistilBERT (Sequence Classification)")
+                st.write("Technique: Pipeline Parallelism")
     else:
-        st.warning("I need both a photo and some text to do the fusion!")
+        st.warning("Please enter more text for a valid analysis.")
