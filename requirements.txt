@@ -1,0 +1,5 @@
+streamlit
+transformers
+torch
+fer
+opencv-python-headless
