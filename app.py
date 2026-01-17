@@ -5,63 +5,72 @@ from PIL import Image
 import numpy as np
 from transformers import pipeline
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Multimodal Vibe Catcher", page_icon="🧘")
-st.title("🧘 Multimodal Vibe Catcher")
-st.markdown("Analyzing your **Facial Expression** and **Written Vibe** together.")
+# 1. Setup
+st.set_page_config(page_title="Vibe-Catcher AI", page_icon="🎯")
+st.title("🎯 Multimodal Vibe-Catcher")
+st.markdown("### NLP + Computer Vision Fusion")
 
-# --- LOAD MODELS ---
+# 2. Load Models Safely
 @st.cache_resource
-def load_nlp():
-    # Standard Sentiment Analysis
+def load_nlp_model():
     return pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
-sentiment_ai = load_nlp()
-face_detector = FER(mtcnn=True) # Facial Emotion Recognition
+@st.cache_resource
+def load_vision_model():
+    # mtcnn=False makes it run faster on basic servers
+    return FER(mtcnn=False)
 
-# --- CAMERA INPUT ---
-st.header("1. Visual Vibe (Camera)")
-img_file = st.camera_input("How are you looking today?")
+sentiment_pipe = load_nlp_model()
+detector = load_vision_model()
 
-face_vibe = "Unknown"
-if img_file:
-    # Convert image for the AI
-    img = Image.open(img_file)
-    frame = np.array(img)
-    
-    # Detect Emotion
-    with st.spinner("Analyzing face..."):
-        result = face_detector.detect_emotions(frame)
-        if result:
-            # Get the top emotion
-            emotions = result[0]["emotions"]
-            face_vibe = max(emotions, key=emotions.get)
-            st.write(f"**Face Detection:** You look **{face_vibe}**")
-        else:
-            st.warning("No face detected. Try better lighting!")
+# 3. Input Section
+col1, col2 = st.columns(2)
 
-# --- TEXT INPUT ---
-st.header("2. Thought Vibe (Text)")
-user_text = st.text_input("How are you actually feeling? (Be honest)")
+with col1:
+    st.subheader("📸 Visual Mode")
+    img_file = st.camera_input("Take a photo")
 
-if st.button("Generate Total Vibe Report"):
-    if user_text:
-        # NLP Task: Sentiment
-        text_analysis = sentiment_ai(user_input=user_text)[0]
-        text_vibe = text_analysis['label']
-        
-        # FINAL MULTIMODAL LOGIC
-        st.divider()
-        st.subheader("Final AI Diagnosis")
-        
-        if face_vibe.lower() == "happy" and text_vibe == "POSITIVE":
-            st.balloons()
-            st.success("Absolute Legend: Your face and thoughts are both in a great place. Keep cooking!")
-        elif face_vibe.lower() == "sad" or text_vibe == "NEGATIVE":
-            st.info("Vibe Check: You might be feeling a bit 'mid' or cooked. Take a break, fr.")
-        else:
-            st.warning("Mixed Signals: Your face says one thing, but your words say another. Intriguing...")
+with col2:
+    st.subheader("✍️ Text Mode")
+    user_text = st.text_input("How's your day going?", placeholder="e.g. It's been a total grind but I'm locked in.")
+
+# 4. Logic & Fusion
+if st.button("Run Multimodal Analysis"):
+    if img_file and user_text:
+        with st.spinner("Calculating Vibe..."):
+            # A. Process Vision
+            img = Image.open(img_file)
+            frame = np.array(img)
+            face_data = detector.detect_emotions(frame)
             
-        st.write(f"**Face:** {face_vibe} | **Words:** {text_vibe}")
+            # B. Process NLP
+            text_data = sentiment_pipe(user_text)[0]
+            
+            # C. Display Results
+            st.divider()
+            
+            res_col1, res_col2 = st.columns(2)
+            
+            with res_col1:
+                if face_data:
+                    emotions = face_data[0]["emotions"]
+                    top_emotion = max(emotions, key=emotions.get)
+                    st.metric("Face Emotion", top_emotion.capitalize())
+                else:
+                    st.warning("No face found in photo.")
+
+            with res_col2:
+                st.metric("Text Sentiment", text_data['label'], f"{round(text_data['score']*100)}%")
+
+            # D. The "Dr. of AI" Fusion Logic
+            st.subheader("Final System Summary")
+            if face_data:
+                # This is a heuristic 'Vibe' fusion
+                if top_emotion == "happy" and text_data['label'] == "POSITIVE":
+                    st.success("Analysis: User is in a 'High-Vibe' state. Neural alignment detected. 🚀")
+                elif text_data['label'] == "NEGATIVE":
+                    st.error("Analysis: Potential 'Brain Rot' or stress detected. Take a break. 🛑")
+                else:
+                    st.info("Analysis: Neutral or Mixed signals detected. System requires more data.")
     else:
-        st.error("Write something first!")
+        st.warning("Please provide BOTH a photo and text for multimodal fusion.")
